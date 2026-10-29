@@ -86,17 +86,11 @@ class TranscriptView
     {
         $parts = [];
         foreach ($content as $block) {
-            if (!is_array($block)) {
-                continue;
-            }
-            if (($block['type'] ?? null) === 'text' && trim((string)($block['text'] ?? '')) !== '') {
+            if (is_array($block) && ($block['type'] ?? null) === 'text' && trim((string)($block['text'] ?? '')) !== '') {
                 $parts[] = trim((string)$block['text']);
             }
-            if (($block['type'] ?? null) === 'thinking' && ($block['shown'] ?? false) === true) {
-                $parts[] = trim((string)($block['thinking'] ?? ''));
-            }
         }
-        return implode("\n\n", array_filter($parts, static fn (string $part): bool => $part !== ''));
+        return implode("\n\n", $parts);
     }
 
     private function cards(array $content, array $nextContent, Registry $registry, EnrichmentContext $ctx): array

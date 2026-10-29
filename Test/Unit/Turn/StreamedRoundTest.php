@@ -99,25 +99,6 @@ class StreamedRoundTest extends TestCase
         $this->assertSame([], $items);
     }
 
-    public function testAShownNoteIsMarkedInTheStoredMessage(): void
-    {
-        $call = new ToolCall('tu1', 'a', []);
-        $round = new StreamedRound();
-        iterator_to_array($round->consume($this->stream([
-            new StreamChunk(StreamChunkType::Thinking, 'Checking the sizes.'),
-            new StreamChunk(StreamChunkType::ToolCall, '', $call),
-        ], new ChatResponse('', [$call], null, FinishReason::ToolCall, 'tool_use', [
-            new StoredReasoning('', 'sig_reasoning'),
-            new StoredReasoning('Checking the sizes.', 'sig_note'),
-        ])), null, true), false);
-
-        $this->assertSame([
-            ['type' => 'thinking', 'thinking' => '', 'signature' => 'sig_reasoning'],
-            ['type' => 'thinking', 'thinking' => 'Checking the sizes.', 'signature' => 'sig_note', 'shown' => true],
-            ['type' => 'tool_use', 'id' => 'tu1', 'name' => 'a', 'input' => []],
-        ], $round->assistantMessage()['content']);
-    }
-
     public function testUsageSplitsCacheOutOfThePromptCount(): void
     {
         $round = new StreamedRound();

@@ -40,6 +40,9 @@ class Orchestrator
         . 'answer to their message now, without repeating or pointing to your earlier notes and without repeating what the '
         . 'components show.';
 
+    private const SHOWN_NOTE = ' Of your notes, the customer saw only this status line, and it disappears when your answer '
+        . 'arrives: "%s"';
+
     private const SUMMARY_MAX_CHARS = 200;
 
     private const EXCERPT_MAX_CHARS = 1200;
@@ -166,6 +169,8 @@ class Orchestrator
         $textBreak = false;
         $textOwed = false;
         $textAsked = false;
+        $pendingNote = '';
+        $lastNote = '';
 
         try {
             try {
@@ -210,12 +215,8 @@ class Orchestrator
                         foreach ($streamed->consume($client->streamChat($request, $options), $onWaiting, $this->showsNotes($config)) as $item) {
                             $emitted = true;
                             if ($item instanceof ProgressNote) {
-                                if ($textTail !== '' && !str_ends_with($textTail, "\n")) {
-                                    yield Event::textDelta("\n\n");
-                                }
-                                $textTail = $item->text;
-                                $textBreak = true;
-                                yield Event::textDelta($item->text);
+                                $pendingNote = $item->text;
+                                $lastNote = $item->text;
                                 continue;
                             }
                             if ($item instanceof TextDelta) {
@@ -245,7 +246,15 @@ class Orchestrator
                                     yield $event;
                                 }
                                 yield $this->toolResultEvent($item->name, $item->id, $outcome);
+                                if ($pendingNote !== '') {
+                                    yield Event::progress($pendingNote);
+                                    $pendingNote = '';
+                                }
                             }
+                        }
+                        if ($pendingNote !== '') {
+                            yield Event::progress($pendingNote);
+                            $pendingNote = '';
                         }
                     } catch (AiContentFilteredException $exception) {
                         $this->logger->warning(sprintf(
@@ -385,7 +394,8 @@ class Orchestrator
                 $textOwed = ($closes || $lastChance) && !$textAsked && trim($answerText) === '' && $blocks !== [];
                 $textAsked = $textAsked || $textOwed;
                 if ($textOwed) {
-                    $blocks[count($blocks) - 1]['content'] .= self::TEXT_OWED_NOTE;
+                    $blocks[count($blocks) - 1]['content'] .= self::TEXT_OWED_NOTE
+                        . ($lastNote !== '' ? sprintf(self::SHOWN_NOTE, $lastNote) : '');
                 }
                 $history->append(['role' => 'user', 'content' => $blocks]);
                 $settled = [];

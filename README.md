@@ -169,7 +169,7 @@ field has default, website and store view scope. Config paths start with
   off where the provider allows it.
 - Show Progress Notes: No by default. Yes sends thinking display `updates`
   with its beta flag and shows the customer the short notes the model writes
-  between lookups, above the cards. Only some models accept it; any other
+  between lookups as the status line while the reply is on its way. Only some models accept it; any other
   model fails every turn. Needs Reasoning Effort above Off.
 
 #### Known limits

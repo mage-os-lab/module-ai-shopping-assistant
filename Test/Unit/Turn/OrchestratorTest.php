@@ -134,7 +134,7 @@ class OrchestratorTest extends TestCase
         $this->assertSame("Here are three picks.\n\n- **Decanter**: for hosts.", $text);
     }
 
-    public function testProgressNotesAreAskedForAndShownAboveTheAnswer(): void
+    public function testAProgressNoteIsAStatusLineShownAfterItsLookup(): void
     {
         $client = $this->scriptedClient()
             ->addToolRound(
@@ -152,15 +152,45 @@ class OrchestratorTest extends TestCase
 
         $events = iterator_to_array($orchestrator->streamTurn($binding, 'Tell me about this product', $binding->context), false);
 
+        $types = array_values(array_map(static fn ($event): string => $event->type, $events));
+        $progress = array_search('progress', $types, true);
+        $this->assertNotFalse($progress);
+        $this->assertSame('Pulling the table details.', $events[$progress]->data['message']);
+        $this->assertSame('tool_result', $types[$progress - 1]);
         $text = implode('', array_map(
             static fn ($event): string => (string)$event->data['text'],
             array_filter($events, static fn ($event): bool => $event->type === 'text_delta')
         ));
-        $this->assertSame("Pulling the table details.\n\nIt comes in two sizes.", $text);
+        $this->assertSame('It comes in two sizes.', $text);
         $options = $client->calls[0]['options'];
         $this->assertSame(['type' => 'adaptive', 'display' => 'updates'], $options['thinking']);
         $this->assertSame(['thinking-display-updates-2026-08-18'], $options['beta_features']);
         $this->assertSame('low', $options['reasoning_effort']);
+    }
+
+    public function testTheOwedAnswerIsToldWhichNoteTheCustomerSaw(): void
+    {
+        $client = $this->scriptedClient()
+            ->addToolRound(
+                [['id' => 'tu1', 'name' => 'present_suggestions', 'input' => ['suggestions' => ['Show more']]]],
+                '',
+                [['thinking' => 'I found the table in two sizes.', 'signature' => 'sig_note']]
+            )
+            ->addTextRound('It comes in two sizes.');
+        [$orchestrator] = $this->buildOrchestrator(
+            $client,
+            [$this->presentationDefinition('present_suggestions')],
+            ['ai_integration/aiagent/model/progress_updates' => '1']
+        );
+        $binding = $this->binding();
+
+        iterator_to_array($orchestrator->streamTurn($binding, 'Tell me about this product', $binding->context), false);
+
+        $messages = $client->calls[1]['request']->getMessages();
+        $this->assertStringContainsString(
+            'Of your notes, the customer saw only this status line, and it disappears when your answer arrives: "I found the table in two sizes."',
+            $messages[count($messages) - 1]->getContent()
+        );
     }
 
     public function testProgressNotesStayOffByDefaultAndWithReasoningOff(): void

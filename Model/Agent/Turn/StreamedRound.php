@@ -25,8 +25,6 @@ class StreamedRound
 
     private string $note = '';
 
-    private bool $showNotes = false;
-
     private array $toolUses = [];
 
     private ?TokenUsageInterface $chunkUsage = null;
@@ -35,7 +33,6 @@ class StreamedRound
 
     public function consume(Generator $stream, ?callable $onWaiting = null, bool $showNotes = false): Generator
     {
-        $this->showNotes = $showNotes;
         foreach ($stream as $chunk) {
             if ($onWaiting !== null) {
                 $onWaiting();
@@ -74,11 +71,7 @@ class StreamedRound
             if ($signature === '') {
                 continue;
             }
-            $block = ['type' => 'thinking', 'thinking' => $reasoning->getText(), 'signature' => $signature];
-            if ($this->showNotes && $this->isNote($reasoning->getText())) {
-                $block['shown'] = true;
-            }
-            $content[] = $block;
+            $content[] = ['type' => 'thinking', 'thinking' => $reasoning->getText(), 'signature' => $signature];
         }
         if ($this->text !== '') {
             $content[] = ['type' => 'text', 'text' => $this->text];
