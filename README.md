@@ -167,6 +167,10 @@ field has default, website and store view scope. Config paths start with
 - Reasoning Effort: Off, Low, Medium or High, passed to AI Base as
   `reasoning_effort`. AI Base translates it per provider. Off turns reasoning
   off where the provider allows it.
+- Show Progress Notes: No by default. Yes sends thinking display `updates`
+  with its beta flag and shows the customer the short notes the model writes
+  between lookups, above the cards. Only some models accept it; any other
+  model fails every turn. Needs Reasoning Effort above Off.
 
 #### Known limits
 

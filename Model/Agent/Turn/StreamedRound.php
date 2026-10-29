@@ -9,12 +9,23 @@ use MageOS\AiBase\Api\Data\FinishReason;
 use MageOS\AiBase\Api\Data\StreamChunkInterface;
 use MageOS\AiBase\Api\Data\StreamChunkType;
 use MageOS\AiBase\Api\Data\TokenUsageInterface;
+use MageOS\AiShoppingAssistant\Model\Agent\Turn\Item\ProgressNote;
 use MageOS\AiShoppingAssistant\Model\Agent\Turn\Item\TextDelta;
 use MageOS\AiShoppingAssistant\Model\Agent\Turn\Item\ToolUseClosed;
 
+/**
+ * With progress notes on, a thinking block that carries text is a note the model wrote before a lookup.
+ * The note is collected until its block ends and then shown, except the stand-in for interrupted work.
+ */
 class StreamedRound
 {
+    private const INTERRUPTED_NOTE = 'This part of the response was interrupted before it finished.';
+
     private string $text = '';
+
+    private string $note = '';
+
+    private bool $showNotes = false;
 
     private array $toolUses = [];
 
@@ -22,8 +33,9 @@ class StreamedRound
 
     private ?ChatResponseInterface $response = null;
 
-    public function consume(Generator $stream, ?callable $onWaiting = null): Generator
+    public function consume(Generator $stream, ?callable $onWaiting = null, bool $showNotes = false): Generator
     {
+        $this->showNotes = $showNotes;
         foreach ($stream as $chunk) {
             if ($onWaiting !== null) {
                 $onWaiting();
@@ -32,6 +44,11 @@ class StreamedRound
                 continue;
             }
             $this->chunkUsage = $chunk->getUsage() ?? $this->chunkUsage;
+            if ($chunk->getType() === StreamChunkType::Thinking) {
+                $this->note .= $showNotes ? $chunk->getText() : '';
+                continue;
+            }
+            yield from $this->flushNote();
             if ($chunk->getType() === StreamChunkType::Text && $chunk->getText() !== '') {
                 $this->text .= $chunk->getText();
                 yield new TextDelta($chunk->getText());
@@ -44,6 +61,7 @@ class StreamedRound
             $this->toolUses[] = ['id' => $call->getId(), 'name' => $call->getName(), 'input' => $call->getArguments()];
             yield new ToolUseClosed($call->getId(), $call->getName(), $call->getArguments());
         }
+        yield from $this->flushNote();
         $response = $stream->getReturn();
         $this->response = $response instanceof ChatResponseInterface ? $response : null;
     }
@@ -56,7 +74,11 @@ class StreamedRound
             if ($signature === '') {
                 continue;
             }
-            $content[] = ['type' => 'thinking', 'thinking' => $reasoning->getText(), 'signature' => $signature];
+            $block = ['type' => 'thinking', 'thinking' => $reasoning->getText(), 'signature' => $signature];
+            if ($this->showNotes && $this->isNote($reasoning->getText())) {
+                $block['shown'] = true;
+            }
+            $content[] = $block;
         }
         if ($this->text !== '') {
             $content[] = ['type' => 'text', 'text' => $this->text];
@@ -107,5 +129,21 @@ class StreamedRound
     private function tokenUsage(): ?TokenUsageInterface
     {
         return $this->response?->getUsage() ?? $this->chunkUsage;
+    }
+
+    private function flushNote(): Generator
+    {
+        $note = trim($this->note);
+        $this->note = '';
+        if ($this->isNote($note)) {
+            yield new ProgressNote($note);
+        }
+    }
+
+    private function isNote(string $text): bool
+    {
+        $text = trim($text);
+
+        return $text !== '' && $text !== self::INTERRUPTED_NOTE;
     }
 }

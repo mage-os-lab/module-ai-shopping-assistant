@@ -17,6 +17,7 @@
                     <model_id></model_id>
                     <max_tokens>2048</max_tokens>
                     <thinking_effort>low</thinking_effort>
+                    <progress_updates>0</progress_updates>
                 </model>
                 <voice>
                     <brand_name></brand_name>

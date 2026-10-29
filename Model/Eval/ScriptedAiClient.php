@@ -57,6 +57,11 @@ class ScriptedAiClient implements AiClientInterface
             throw new \LogicException('ScriptedAiClient script exhausted');
         }
         $round = array_shift($this->rounds);
+        foreach ($round['reasoning'] as $block) {
+            if ((string)($block['thinking'] ?? '') !== '') {
+                yield $this->chunkFactory->create(['type' => StreamChunkType::Thinking, 'text' => (string)$block['thinking']]);
+            }
+        }
         if ($round['text'] !== '') {
             yield $this->chunkFactory->create(['type' => StreamChunkType::Text, 'text' => $round['text']]);
         }

@@ -11,6 +11,7 @@ class AgentConfig
         public readonly string $modelId = '',
         public readonly int $maxTokens = 2048,
         public readonly string $thinkingEffort = 'low',
+        public readonly bool $progressUpdates = false,
         public readonly string $brandName = '',
         public readonly string $assistantName = 'the shopping assistant',
         public readonly string $brandVoice = 'warm, concise, and plain about trade-offs',

@@ -96,6 +96,12 @@
                         <source_model>MageOS\AiShoppingAssistant\Model\Config\Source\ThinkingEffort</source_model>
                         <comment>Translated per provider by AI Base. Off turns reasoning off where the provider allows it.</comment>
                     </field>
+                    <field id="progress_updates" translate="label comment" type="select" sortOrder="50"
+                           showInDefault="1" showInWebsite="1" showInStore="1">
+                        <label>Show Progress Notes</label>
+                        <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                        <comment>Shows the customer the short notes the model writes between lookups, above the cards. Sends thinking display "updates" with its beta flag, which only some models accept: leave this off for any other model, or every turn fails. Needs Reasoning Effort above Off.</comment>
+                    </field>
                 </group>
                 <group id="voice" translate="label" type="text" sortOrder="30" showInDefault="1" showInWebsite="1"
                        showInStore="1">

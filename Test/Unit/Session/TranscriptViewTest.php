@@ -153,6 +153,20 @@ class TranscriptViewTest extends TestCase
         $this->assertSame("Here are three picks.\n\n- **Decanter**: for hosts.", $messages[0]['text']);
     }
 
+    public function testAShownNoteIsRestoredAndHiddenThinkingIsNot(): void
+    {
+        $rows = [
+            ['role' => 'assistant', 'content' => [
+                ['type' => 'thinking', 'thinking' => '', 'signature' => 's1'],
+                ['type' => 'thinking', 'thinking' => 'A summary of the reasoning.', 'signature' => 's2'],
+                ['type' => 'thinking', 'thinking' => 'Pulling the table details.', 'signature' => 's3', 'shown' => true],
+                ['type' => 'tool_use', 'id' => 'tu1', 'name' => 'lookup', 'input' => []],
+            ]],
+        ];
+        $messages = (new TranscriptView())->render($rows, $this->registry(), $this->ctx(new SessionState()));
+        $this->assertSame('Pulling the table details.', $messages[0]['text']);
+    }
+
     public function testToolResultOnlyUserMessageIsNotEmittedAsAUserEntry(): void
     {
         $rows = [

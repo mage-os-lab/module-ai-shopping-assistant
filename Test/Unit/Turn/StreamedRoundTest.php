@@ -10,6 +10,7 @@ use MageOS\AiBase\Model\Chat\ChatResponse;
 use MageOS\AiBase\Model\Chat\StreamChunk;
 use MageOS\AiBase\Model\Chat\TokenUsage;
 use MageOS\AiBase\Model\Chat\ToolCall;
+use MageOS\AiShoppingAssistant\Model\Agent\Turn\Item\ProgressNote;
 use MageOS\AiShoppingAssistant\Model\Agent\Turn\Item\TextDelta;
 use MageOS\AiShoppingAssistant\Model\Agent\Turn\Item\ToolUseClosed;
 use MageOS\AiShoppingAssistant\Model\Agent\Turn\StoredReasoning;
@@ -70,6 +71,51 @@ class StreamedRoundTest extends TestCase
             ],
         ], $round->assistantMessage());
         $this->assertSame([['id' => 'tu1', 'name' => 'a', 'input' => ['x' => 1]]], $round->toolUses());
+    }
+
+    public function testANoteIsShownWholeBeforeTheLookupItIntroduces(): void
+    {
+        $call = new ToolCall('tu1', 'get_product_details', ['product_id' => '42988']);
+        $chunks = [
+            new StreamChunk(StreamChunkType::ThinkingStart),
+            new StreamChunk(StreamChunkType::Thinking, 'Pulling the table '),
+            new StreamChunk(StreamChunkType::Thinking, 'details.'),
+            new StreamChunk(StreamChunkType::ToolCall, '', $call),
+        ];
+
+        $shown = iterator_to_array((new StreamedRound())->consume($this->stream($chunks, new ChatResponse('', [$call])), null, true), false);
+        $hidden = iterator_to_array((new StreamedRound())->consume($this->stream($chunks, new ChatResponse('', [$call]))), false);
+
+        $this->assertEquals([new ProgressNote('Pulling the table details.'), new ToolUseClosed('tu1', 'get_product_details', ['product_id' => '42988'])], $shown);
+        $this->assertEquals([new ToolUseClosed('tu1', 'get_product_details', ['product_id' => '42988'])], $hidden);
+    }
+
+    public function testTheStandInForInterruptedWorkIsNotShown(): void
+    {
+        $items = iterator_to_array((new StreamedRound())->consume($this->stream([
+            new StreamChunk(StreamChunkType::Thinking, 'This part of the response was interrupted before it finished.'),
+        ], new ChatResponse('')), null, true), false);
+
+        $this->assertSame([], $items);
+    }
+
+    public function testAShownNoteIsMarkedInTheStoredMessage(): void
+    {
+        $call = new ToolCall('tu1', 'a', []);
+        $round = new StreamedRound();
+        iterator_to_array($round->consume($this->stream([
+            new StreamChunk(StreamChunkType::Thinking, 'Checking the sizes.'),
+            new StreamChunk(StreamChunkType::ToolCall, '', $call),
+        ], new ChatResponse('', [$call], null, FinishReason::ToolCall, 'tool_use', [
+            new StoredReasoning('', 'sig_reasoning'),
+            new StoredReasoning('Checking the sizes.', 'sig_note'),
+        ])), null, true), false);
+
+        $this->assertSame([
+            ['type' => 'thinking', 'thinking' => '', 'signature' => 'sig_reasoning'],
+            ['type' => 'thinking', 'thinking' => 'Checking the sizes.', 'signature' => 'sig_note', 'shown' => true],
+            ['type' => 'tool_use', 'id' => 'tu1', 'name' => 'a', 'input' => []],
+        ], $round->assistantMessage()['content']);
     }
 
     public function testUsageSplitsCacheOutOfThePromptCount(): void

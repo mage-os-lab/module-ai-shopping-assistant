@@ -18,6 +18,7 @@ use MageOS\AiShoppingAssistant\Model\Agent\AgentConfig;
 use MageOS\AiShoppingAssistant\Model\Agent\Event;
 use MageOS\AiShoppingAssistant\Model\Agent\SessionContext;
 use MageOS\AiShoppingAssistant\Model\Agent\ToolOutcome;
+use MageOS\AiShoppingAssistant\Model\Agent\Turn\Item\ProgressNote;
 use MageOS\AiShoppingAssistant\Model\Agent\Turn\Item\TextDelta;
 use MageOS\AiShoppingAssistant\Model\Agent\Turn\Item\ToolUseClosed;
 use MageOS\AiShoppingAssistant\Model\Config\Source\ThinkingEffort;
@@ -44,6 +45,8 @@ class Orchestrator
     private const EXCERPT_MAX_CHARS = 1200;
 
     private const ROUND_RETRY_DELAY_SECONDS = 0.75;
+
+    private const PROGRESS_NOTES_BETA = 'thinking-display-updates-2026-08-18';
 
     private const FORGED_TAG_PATTERN = '~<(\s*/?\s*storefront_data)~i';
 
@@ -204,8 +207,17 @@ class Orchestrator
                     $streamed = $this->streamedRoundFactory->create();
                     $emitted = false;
                     try {
-                        foreach ($streamed->consume($client->streamChat($request, $options), $onWaiting) as $item) {
+                        foreach ($streamed->consume($client->streamChat($request, $options), $onWaiting, $this->showsNotes($config)) as $item) {
                             $emitted = true;
+                            if ($item instanceof ProgressNote) {
+                                if ($textTail !== '' && !str_ends_with($textTail, "\n")) {
+                                    yield Event::textDelta("\n\n");
+                                }
+                                $textTail = $item->text;
+                                $textBreak = true;
+                                yield Event::textDelta($item->text);
+                                continue;
+                            }
                             if ($item instanceof TextDelta) {
                                 if ($textBreak && $textTail !== '' && !str_ends_with($textTail, "\n") && !str_starts_with($item->text, "\n")) {
                                     yield Event::textDelta("\n\n");
@@ -450,7 +462,16 @@ class Orchestrator
         if ($config->modelId !== '') {
             $options[AiClientInterface::OPTION_MODEL] = $config->modelId;
         }
+        if ($this->showsNotes($config)) {
+            $options['thinking'] = ['type' => 'adaptive', 'display' => 'updates'];
+            $options['beta_features'] = [self::PROGRESS_NOTES_BETA];
+        }
         return $options;
+    }
+
+    private function showsNotes(AgentConfig $config): bool
+    {
+        return $config->progressUpdates && $config->thinkingEffort !== ThinkingEffort::OFF;
     }
 
     private function accumulateUsage(array $totals, array $roundUsage): array

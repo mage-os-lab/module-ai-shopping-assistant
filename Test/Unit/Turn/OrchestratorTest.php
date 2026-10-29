@@ -134,6 +134,60 @@ class OrchestratorTest extends TestCase
         $this->assertSame("Here are three picks.\n\n- **Decanter**: for hosts.", $text);
     }
 
+    public function testProgressNotesAreAskedForAndShownAboveTheAnswer(): void
+    {
+        $client = $this->scriptedClient()
+            ->addToolRound(
+                [['id' => 'tu1', 'name' => 'tool_a', 'input' => []]],
+                '',
+                [['thinking' => 'Pulling the table details.', 'signature' => 'sig_note']]
+            )
+            ->addTextRound('It comes in two sizes.');
+        [$orchestrator] = $this->buildOrchestrator(
+            $client,
+            [$this->definitionForHandler('tool_a', ToolOutcome::ok('shown'))],
+            ['ai_integration/aiagent/model/progress_updates' => '1']
+        );
+        $binding = $this->binding();
+
+        $events = iterator_to_array($orchestrator->streamTurn($binding, 'Tell me about this product', $binding->context), false);
+
+        $text = implode('', array_map(
+            static fn ($event): string => (string)$event->data['text'],
+            array_filter($events, static fn ($event): bool => $event->type === 'text_delta')
+        ));
+        $this->assertSame("Pulling the table details.\n\nIt comes in two sizes.", $text);
+        $options = $client->calls[0]['options'];
+        $this->assertSame(['type' => 'adaptive', 'display' => 'updates'], $options['thinking']);
+        $this->assertSame(['thinking-display-updates-2026-08-18'], $options['beta_features']);
+        $this->assertSame('low', $options['reasoning_effort']);
+    }
+
+    public function testProgressNotesStayOffByDefaultAndWithReasoningOff(): void
+    {
+        foreach ([[], ['ai_integration/aiagent/model/progress_updates' => '1', 'ai_integration/aiagent/model/thinking_effort' => 'off']] as $config) {
+            $client = $this->scriptedClient()
+                ->addToolRound(
+                    [['id' => 'tu1', 'name' => 'tool_a', 'input' => []]],
+                    '',
+                    [['thinking' => 'Pulling the table details.', 'signature' => 'sig_note']]
+                )
+                ->addTextRound('It comes in two sizes.');
+            [$orchestrator] = $this->buildOrchestrator($client, [$this->definitionForHandler('tool_a', ToolOutcome::ok('shown'))], $config);
+            $binding = $this->binding();
+
+            $events = iterator_to_array($orchestrator->streamTurn($binding, 'Tell me about this product', $binding->context), false);
+
+            $texts = array_map(
+                static fn ($event): string => (string)$event->data['text'],
+                array_filter($events, static fn ($event): bool => $event->type === 'text_delta')
+            );
+            $this->assertSame('It comes in two sizes.', implode('', $texts));
+            $this->assertArrayNotHasKey('thinking', $client->calls[0]['options']);
+            $this->assertArrayNotHasKey('beta_features', $client->calls[0]['options']);
+        }
+    }
+
     public function testStreamTurnRemembersTheCustomerMessageBeforeTheRounds(): void
     {
         $client = $this->scriptedClient()->addTextRound('Hello there.');
@@ -1262,7 +1316,9 @@ class OrchestratorTest extends TestCase
         $scopeConfig->method('getValue')->willReturnCallback(
             static fn (string $path): mixed => $valueOverrides[$path] ?? null
         );
-        $scopeConfig->method('isSetFlag')->willReturn(false);
+        $scopeConfig->method('isSetFlag')->willReturnCallback(
+            static fn (string $path): bool => (bool)($valueOverrides[$path] ?? false)
+        );
         $store = $this->createMock(StoreInterface::class);
         $store->method('getName')->willReturn('');
         $storeManager = $this->createMock(StoreManagerInterface::class);

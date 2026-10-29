@@ -22,6 +22,7 @@ class StoreConfig
     private const PATH_MODEL_MODEL_ID = 'ai_integration/aiagent/model/model_id';
     private const PATH_MODEL_MAX_TOKENS = 'ai_integration/aiagent/model/max_tokens';
     private const PATH_MODEL_THINKING_EFFORT = 'ai_integration/aiagent/model/thinking_effort';
+    private const PATH_MODEL_PROGRESS_UPDATES = 'ai_integration/aiagent/model/progress_updates';
     private const PATH_STORE_INFORMATION_NAME = 'general/store_information/name';
     private const PATH_VOICE_BRAND_NAME = 'ai_integration/aiagent/voice/brand_name';
     private const PATH_VOICE_ASSISTANT_NAME = 'ai_integration/aiagent/voice/assistant_name';
@@ -89,6 +90,7 @@ class StoreConfig
             modelId: $this->readString(self::PATH_MODEL_MODEL_ID, $storeId, $defaults->modelId),
             maxTokens: $this->readInt(self::PATH_MODEL_MAX_TOKENS, $storeId, $defaults->maxTokens),
             thinkingEffort: $this->readString(self::PATH_MODEL_THINKING_EFFORT, $storeId, $defaults->thinkingEffort),
+            progressUpdates: $this->readBool(self::PATH_MODEL_PROGRESS_UPDATES, $storeId, $defaults->progressUpdates),
             brandName: $this->readBrandName($storeId, $defaults->brandName),
             assistantName: $this->readString(self::PATH_VOICE_ASSISTANT_NAME, $storeId, $defaults->assistantName),
             brandVoice: $this->readString(self::PATH_VOICE_BRAND_VOICE, $storeId, $defaults->brandVoice),
