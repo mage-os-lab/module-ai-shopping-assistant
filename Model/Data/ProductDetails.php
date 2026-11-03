@@ -22,7 +22,7 @@ class ProductDetails implements ProductDetailsInterface
         private readonly ?string $category = null,
         private readonly array $labels = [],
         private readonly array $attributes = [],
-        private readonly bool $inStock = true,
+        private readonly ?bool $inStock = true,
         private readonly ?string $shortDescription = null,
         private readonly array $options = [],
         private readonly array $optionValues = [],
@@ -43,6 +43,9 @@ class ProductDetails implements ProductDetailsInterface
         array $variants,
         ?string $note = null
     ): self {
+        $data = $product->toArray();
+        $inStock = array_key_exists('in_stock', $data) ? $data['in_stock'] : $product->isInStock();
+
         return new self(
             productId: $product->getProductId(),
             title: $product->getTitle(),
@@ -57,7 +60,7 @@ class ProductDetails implements ProductDetailsInterface
             category: $product->getCategory(),
             labels: $product->getLabels(),
             attributes: $product->getAttributes(),
-            inStock: $product->isInStock(),
+            inStock: $inStock === null ? null : (bool)$inStock,
             shortDescription: $product->getShortDescription(),
             options: $product->getOptions(),
             optionValues: $product->getOptionValues(),
@@ -148,7 +151,7 @@ class ProductDetails implements ProductDetailsInterface
         );
     }
 
-    public function withInStock(bool $inStock): self
+    public function withInStock(?bool $inStock): self
     {
         return new self(
             productId: $this->productId,
@@ -275,7 +278,12 @@ class ProductDetails implements ProductDetailsInterface
 
     public function isInStock(): bool
     {
-        return $this->inStock;
+        return $this->inStock !== false;
+    }
+
+    public function isStockKnown(): bool
+    {
+        return $this->inStock !== null;
     }
 
     public function getShortDescription(): ?string

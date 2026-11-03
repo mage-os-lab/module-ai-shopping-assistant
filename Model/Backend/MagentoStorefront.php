@@ -165,6 +165,7 @@ class MagentoStorefront implements StorefrontBackendInterface
 
         $variants = [];
         $anyInStock = false;
+        $anyUnknown = false;
         $lowestPrice = null;
 
         foreach ($usedProducts as $child) {
@@ -178,8 +179,9 @@ class MagentoStorefront implements StorefrontBackendInterface
             $variant = Product::fromArray($variantData);
             $variants[] = $variant;
 
+            $anyUnknown = $anyUnknown || !$variant->isStockKnown();
             if ($variant->isInStock()) {
-                $anyInStock = true;
+                $anyInStock = $anyInStock || $variant->isStockKnown();
                 if ($lowestPrice === null || $variant->getPrice() < $lowestPrice) {
                     $lowestPrice = $variant->getPrice();
                 }
@@ -195,7 +197,7 @@ class MagentoStorefront implements StorefrontBackendInterface
             $variants = array_slice($variants, 0, self::MAX_VARIANTS);
         }
 
-        $details = $details->withVariants($variants)->withInStock($anyInStock);
+        $details = $details->withVariants($variants)->withInStock($anyInStock ?: ($anyUnknown ? null : false));
         if ($lowestPrice !== null) {
             $details = $details->withPrice($lowestPrice);
         }
