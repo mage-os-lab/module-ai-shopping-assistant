@@ -24,6 +24,8 @@ class Serializer
 
     private const FENCE_MARGIN = 200;
 
+    private const STOCK_UNKNOWN = 'unknown';
+
     public function __construct(
         private readonly \MageOS\AiShoppingAssistant\Model\Agent\Fencing\Fence $fence
     ) {
@@ -37,9 +39,9 @@ class Serializer
             'price' => (float)($record['price'] ?? 0.0),
             'currency' => (string)($record['currency'] ?? 'USD'),
         ];
-        if (!array_key_exists('in_stock', $record) || $record['in_stock'] !== null) {
-            $required['in_stock'] = (bool)($record['in_stock'] ?? true);
-        }
+        $required['in_stock'] = array_key_exists('in_stock', $record) && $record['in_stock'] === null
+            ? self::STOCK_UNKNOWN
+            : (bool)($record['in_stock'] ?? true);
         $optional = [
             'original_price' => $record['original_price'] ?? null,
             'brand' => $record['brand'] ?? null,

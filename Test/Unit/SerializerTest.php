@@ -428,11 +428,11 @@ class SerializerTest extends TestCase
         $this->assertSame('not included, added at checkout', $discounted['shipping_and_tax']);
     }
 
-    public function testCompactProductLeavesOutAStockItDoesNotKnow(): void
+    public function testCompactProductSaysWhenItDoesNotKnowTheStock(): void
     {
         $record = ['product_id' => 'P-1', 'title' => 'Pendant', 'price' => 660.0];
 
-        $this->assertArrayNotHasKey('in_stock', $this->serializer->compactProduct($record + ['in_stock' => null]));
+        $this->assertSame('unknown', $this->serializer->compactProduct($record + ['in_stock' => null])['in_stock']);
         $this->assertFalse($this->serializer->compactProduct($record + ['in_stock' => false])['in_stock']);
         $this->assertTrue($this->serializer->compactProduct($record)['in_stock']);
     }
