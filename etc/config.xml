@@ -39,6 +39,7 @@ How do returns work?</starters>
                     <catalog_map_max_chars>6000</catalog_map_max_chars>
                     <store_facts></store_facts>
                     <include_core_facts>1</include_core_facts>
+                    <cart_prices>store</cart_prices>
                 </content>
                 <cards>
                     <products_image>1</products_image>

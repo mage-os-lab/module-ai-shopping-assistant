@@ -22,6 +22,8 @@ class Serializer
 
     private const UNSETTABLE_CUSTOM_OPTION_TYPES = ['file', 'date', 'date_time', 'time'];
 
+    private const FENCE_MARGIN = 200;
+
     public function __construct(
         private readonly \MageOS\AiShoppingAssistant\Model\Agent\Fencing\Fence $fence
     ) {
@@ -34,8 +36,10 @@ class Serializer
             'title' => (string)($record['title'] ?? ''),
             'price' => (float)($record['price'] ?? 0.0),
             'currency' => (string)($record['currency'] ?? 'USD'),
-            'in_stock' => (bool)($record['in_stock'] ?? true),
         ];
+        if (!array_key_exists('in_stock', $record) || $record['in_stock'] !== null) {
+            $required['in_stock'] = (bool)($record['in_stock'] ?? true);
+        }
         $optional = [
             'original_price' => $record['original_price'] ?? null,
             'brand' => $record['brand'] ?? null,
@@ -135,13 +139,19 @@ class Serializer
         return $result;
     }
 
-    public function productDetails(ProductDetailsInterface $d): array
+    /**
+     * Custom options go last, after the specs, and their value lists are shortened until the record fits
+     * $maxChars, so a product with hundreds of fabrics keeps its measurements and materials.
+     */
+    public function productDetails(ProductDetailsInterface $d, int $maxChars = 0): array
     {
         $family = $this->compactProduct($d->toArray());
         $variants = [];
         foreach ($d->getVariants() as $variant) {
             $variants[] = $this->variantRow($variant->toArray(), $family);
         }
+        $customOptions = $family['custom_options'] ?? [];
+        unset($family['custom_options']);
         $specs = $d->getSpecs();
         $optional = $this->dropEmpty([
             'long_description' => $d->getLongDescription(),
@@ -149,7 +159,55 @@ class Serializer
             'variants' => $variants,
             'note' => $d->getNote(),
         ]);
-        return $family + $optional;
+        $payload = $family + $optional;
+        if ($customOptions !== []) {
+            $payload['custom_options'] = $this->fitCustomOptions($customOptions, $payload, $maxChars);
+        }
+        return $payload;
+    }
+
+    private function fitCustomOptions(array $options, array $payload, int $maxChars): array
+    {
+        $budget = $maxChars - self::FENCE_MARGIN;
+        if ($maxChars <= 0 || $this->encodedLength($payload + ['custom_options' => $options]) <= $budget) {
+            return $options;
+        }
+        $low = 0;
+        $high = max(array_map(static fn (array $option): int => count($option['values'] ?? []), $options));
+        $best = $this->capOptionValues($options, 0);
+        while ($low <= $high) {
+            $limit = intdiv($low + $high, 2);
+            $capped = $this->capOptionValues($options, $limit);
+            if ($this->encodedLength($payload + ['custom_options' => $capped]) <= $budget) {
+                $best = $capped;
+                $low = $limit + 1;
+                continue;
+            }
+            $high = $limit - 1;
+        }
+        return $best;
+    }
+
+    private function capOptionValues(array $options, int $limit): array
+    {
+        foreach ($options as $index => $option) {
+            $count = count($option['values'] ?? []);
+            if ($count <= $limit) {
+                continue;
+            }
+            $options[$index]['values'] = array_slice($option['values'], 0, $limit);
+            $options[$index]['more_values'] = $count - $limit;
+            if ($limit === 0) {
+                unset($options[$index]['values']);
+            }
+        }
+        return $options;
+    }
+
+    private function encodedLength(array $payload): int
+    {
+        $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+        return $encoded !== false ? mb_strlen($encoded) : PHP_INT_MAX;
     }
 
     public function searchResultText(string $query, array $products, int $maxChars): string

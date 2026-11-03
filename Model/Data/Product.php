@@ -21,7 +21,7 @@ class Product implements ProductInterface
         private readonly ?string $category = null,
         private readonly array $labels = [],
         private readonly array $attributes = [],
-        private readonly bool $inStock = true,
+        private readonly ?bool $inStock = true,
         private readonly ?string $shortDescription = null,
         private readonly array $options = [],
         private readonly array $optionValues = [],
@@ -47,7 +47,7 @@ class Product implements ProductInterface
             category: isset($data['category']) ? (string)$data['category'] : null,
             labels: is_array($data['labels'] ?? null) ? array_values($data['labels']) : [],
             attributes: is_array($data['attributes'] ?? null) ? $data['attributes'] : [],
-            inStock: (bool)($data['in_stock'] ?? true),
+            inStock: array_key_exists('in_stock', $data) && $data['in_stock'] === null ? null : (bool)($data['in_stock'] ?? true),
             shortDescription: isset($data['short_description']) ? (string)$data['short_description'] : null,
             options: is_array($data['options'] ?? null) ? $data['options'] : [],
             optionValues: is_array($data['option_values'] ?? null) ? $data['option_values'] : [],
@@ -124,7 +124,12 @@ class Product implements ProductInterface
 
     public function isInStock(): bool
     {
-        return $this->inStock;
+        return $this->inStock !== false;
+    }
+
+    public function isStockKnown(): bool
+    {
+        return $this->inStock !== null;
     }
 
     public function getShortDescription(): ?string

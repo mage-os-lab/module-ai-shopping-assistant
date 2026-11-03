@@ -26,7 +26,7 @@ class GetProductDetails implements HandlerInterface
         if ($details === null) {
             return ToolOutcome::error("No product with product_id {$productId}. Search for it by name instead.");
         }
-        $payload = $this->serializer->productDetails($details);
+        $payload = $this->serializer->productDetails($details, $config->maxFencedChars);
         $products = [Product::fromArray($details->toArray())->toArray()];
         foreach ($details->getVariants() as $variant) {
             $products[] = $variant->toArray();

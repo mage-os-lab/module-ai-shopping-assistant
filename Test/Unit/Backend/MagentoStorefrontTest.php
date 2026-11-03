@@ -72,6 +72,7 @@ use MageOS\AiShoppingAssistant\Model\Backend\Provider\AllowedCategories;
 use MageOS\AiShoppingAssistant\Model\Backend\Provider\CoreOptions;
 use MageOS\AiShoppingAssistant\Model\Backend\Provider\HelperImageUrl;
 use MageOS\AiShoppingAssistant\Model\Backend\ProductMapper;
+use MageOS\AiShoppingAssistant\Model\Backend\CartPriceDisplay;
 use MageOS\AiShoppingAssistant\Model\Backend\Salability;
 use MageOS\AiShoppingAssistant\Model\Config\StoreConfig;
 use MageOS\AiShoppingAssistant\Model\Data\PageContext;
@@ -142,6 +143,13 @@ class MagentoStorefrontTest extends TestCase
         $product->method('getStatus')->willReturn(Status::STATUS_ENABLED);
         $product->method('getWebsiteIds')->willReturn([1]);
         return $product;
+    }
+
+    private function cartPriceDisplay(bool $includesTax): CartPriceDisplay
+    {
+        $display = $this->createMock(CartPriceDisplay::class);
+        $display->method('includesTax')->willReturn($includesTax);
+        return $display;
     }
 
     private function salability(bool $result): Salability
@@ -321,6 +329,7 @@ class MagentoStorefrontTest extends TestCase
             'policySource' => $this->createMock(PolicySourceInterface::class),
             'fulfillmentProvider' => $this->createMock(FulfillmentProviderInterface::class),
             'categorySearchProvider' => $this->createMock(CategorySearchProviderInterface::class),
+            'cartPriceDisplay' => $this->cartPriceDisplay(true),
             'allowedCategories' => $this->allowedCategories(),
             'shipmentTrackRepository' => $this->shipmentTrackRepository(),
             'shipmentRepository' => $this->shipmentRepository(),
@@ -475,6 +484,37 @@ class MagentoStorefrontTest extends TestCase
         $cart = $storefront->getCart($this->context());
 
         $this->assertSame('https://example.test/placeholder.jpg', $cart->getItems()[0]->getImageUrl());
+    }
+
+    public function testGetCartQuotesLinePricesWithOrWithoutTaxAsConfigured(): void
+    {
+        foreach ([[true, 176.4], [false, 157.5]] as [$includesTax, $expected]) {
+            $item = $this->getMockBuilder(QuoteItem::class)
+                ->disableOriginalConstructor()
+                ->onlyMethods(['getProductType', 'getProduct', 'getName', 'getQty', 'getId', 'getPrice', '__call'])
+                ->getMock();
+            $item->method('getProductType')->willReturn('simple');
+            $item->method('getProduct')->willReturn($this->magentoProduct(700, 'Milk Boiler', 157.5));
+            $item->method('getName')->willReturn('Milk Boiler');
+            $item->method('getQty')->willReturn(1.0);
+            $item->method('getId')->willReturn(91);
+            $item->method('__call')->willReturnCallback(static fn (string $name) => $name === 'getPriceInclTax' ? 176.4 : null);
+            $item->method('getPrice')->willReturn(157.5);
+            $quote = $this->createMock(Quote::class);
+            $quote->method('getAllVisibleItems')->willReturn([$item]);
+            $cartRepository = $this->createMock(CartRepositoryInterface::class);
+            $cartRepository->method('get')->willReturn($quote);
+            $productConfiguration = $this->createMock(ProductConfigurationHelper::class);
+            $productConfiguration->method('getOptions')->willReturn([]);
+
+            $cart = $this->buildStorefront([
+                'cartRepository' => $cartRepository,
+                'productConfiguration' => $productConfiguration,
+                'cartPriceDisplay' => $this->cartPriceDisplay($includesTax),
+            ])->getCart($this->context());
+
+            $this->assertSame($expected, $cart->getItems()[0]->getPrice());
+        }
     }
 
     public function testAddToCartRaisesUnavailableWithSiblingIds(): void

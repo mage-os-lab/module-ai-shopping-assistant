@@ -210,6 +210,12 @@
                             does not know, for example gift wrapping.
                         </comment>
                     </field>
+                    <field id="cart_prices" translate="label comment" type="select" sortOrder="27"
+                           showInDefault="1" showInWebsite="1" showInStore="1">
+                        <label>Cart Prices</label>
+                        <source_model>MageOS\AiShoppingAssistant\Model\Config\Source\CartPrices</source_model>
+                        <comment>Whether cart line prices reach the assistant with or without tax. "As the Store Shows the Cart" follows Sales > Tax > Shopping Cart Display Settings > Display Prices, so the assistant quotes the price the customer sees in the cart.</comment>
+                    </field>
                 </group>
                 <group id="cards" translate="label" type="text" sortOrder="45" showInDefault="1" showInWebsite="1"
                        showInStore="1">

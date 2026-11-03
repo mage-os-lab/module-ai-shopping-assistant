@@ -216,6 +216,9 @@ field has default, website and store view scope. Config paths start with
 - Include Core Facts: facts read from Magento settings: payment methods,
   shipping carriers, gift messages, guest checkout, minimum order amount and
   store contact.
+- Cart Prices: whether cart line prices reach the assistant with or without
+  tax. The default follows the store's Shopping Cart Display Settings, so the
+  assistant quotes the price the customer sees in the cart.
 
 ### Product Cards
 

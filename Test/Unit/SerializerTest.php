@@ -427,4 +427,83 @@ class SerializerTest extends TestCase
         $this->assertSame('SAVE15', $discounted['coupon_code']);
         $this->assertSame('not included, added at checkout', $discounted['shipping_and_tax']);
     }
+
+    public function testCompactProductLeavesOutAStockItDoesNotKnow(): void
+    {
+        $record = ['product_id' => 'P-1', 'title' => 'Pendant', 'price' => 660.0];
+
+        $this->assertArrayNotHasKey('in_stock', $this->serializer->compactProduct($record + ['in_stock' => null]));
+        $this->assertFalse($this->serializer->compactProduct($record + ['in_stock' => false])['in_stock']);
+        $this->assertTrue($this->serializer->compactProduct($record)['in_stock']);
+    }
+
+    public function testProductDetailsPutTheCustomOptionsAfterTheSpecs(): void
+    {
+        $details = ProductDetails::fromProduct(
+            Product::fromArray([
+                'product_id' => 'SOFA-1',
+                'title' => 'Sofa',
+                'price' => 4000.0,
+                'custom_options' => [['title' => 'Fabric', 'type' => 'drop_down', 'required' => true, 'values' => [['title' => 'Linen', 'price' => 0.0]]]],
+            ]),
+            null,
+            ['Width' => '240 cm'],
+            []
+        );
+
+        $keys = array_keys($this->serializer->productDetails($details, 12000));
+
+        $this->assertGreaterThan(array_search('specs', $keys, true), array_search('custom_options', $keys, true));
+    }
+
+    public function testProductDetailsShortenLongOptionListsSoTheSpecsFit(): void
+    {
+        $values = [];
+        foreach (range(1, 2000) as $n) {
+            $values[] = ['title' => 'Fabric Collection Category P Colour ' . $n, 'price' => 120.0];
+        }
+        $details = ProductDetails::fromProduct(
+            Product::fromArray([
+                'product_id' => 'SOFA-2',
+                'title' => 'Sofa',
+                'price' => 4000.0,
+                'custom_options' => [
+                    ['title' => 'Fabric', 'type' => 'drop_down', 'required' => true, 'values' => $values],
+                    ['title' => 'Legs', 'type' => 'drop_down', 'required' => true, 'values' => [['title' => 'Oak', 'price' => 0.0]]],
+                ],
+            ]),
+            null,
+            ['Width' => '240 cm', 'Materials' => 'Solid oak frame'],
+            []
+        );
+
+        $payload = $this->serializer->productDetails($details, 12000);
+        $fabric = $payload['custom_options'][0];
+
+        $this->assertLessThanOrEqual(12000, mb_strlen((string)json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
+        $this->assertSame(['Width' => '240 cm', 'Materials' => 'Solid oak frame'], $payload['specs']);
+        $this->assertSame('Fabric Collection Category P Colour 1 (+120.00)', $fabric['values'][0]);
+        $this->assertSame(2000 - count($fabric['values']), $fabric['more_values']);
+        $this->assertSame(['Oak'], $payload['custom_options'][1]['values']);
+    }
+
+    public function testProductDetailsKeepEveryOptionValueWhenTheRecordFits(): void
+    {
+        $details = ProductDetails::fromProduct(
+            Product::fromArray([
+                'product_id' => 'LAMP-1',
+                'title' => 'Lamp',
+                'price' => 300.0,
+                'custom_options' => [['title' => 'Finish', 'type' => 'drop_down', 'required' => true, 'values' => [['title' => 'Brass', 'price' => 0.0], ['title' => 'Black', 'price' => 0.0]]]],
+            ]),
+            null,
+            [],
+            []
+        );
+
+        $option = $this->serializer->productDetails($details, 12000)['custom_options'][0];
+
+        $this->assertSame(['Brass', 'Black'], $option['values']);
+        $this->assertArrayNotHasKey('more_values', $option);
+    }
 }

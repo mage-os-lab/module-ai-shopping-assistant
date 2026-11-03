@@ -107,7 +107,10 @@ define([], function () {
         if (productsConfig.stock === false) {
             return '';
         }
-        return product.in_stock === true ? 'in' : 'out';
+        if (product.in_stock === true) {
+            return 'in';
+        }
+        return product.in_stock === false ? 'out' : '';
     }
 
     return {

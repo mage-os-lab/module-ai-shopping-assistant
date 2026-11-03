@@ -175,4 +175,16 @@ class ProductTest extends TestCase
 
         $this->assertSame($data, $roundTripped);
     }
+
+    public function testAnUnknownStockStaysUnknownAndCountsAsOrderable(): void
+    {
+        $unknown = Product::fromArray(['product_id' => 'SKU-9', 'title' => 'Pendant', 'price' => 660.0, 'in_stock' => null]);
+        $absent = Product::fromArray(['product_id' => 'SKU-9', 'title' => 'Pendant', 'price' => 660.0]);
+
+        $this->assertFalse($unknown->isStockKnown());
+        $this->assertTrue($unknown->isInStock());
+        $this->assertNull($unknown->toArray()['in_stock']);
+        $this->assertTrue($absent->isStockKnown());
+        $this->assertTrue($absent->isInStock());
+    }
 }

@@ -826,7 +826,7 @@ function initAiAgentCardProducts() {
             return this.showStock() && this.item.product.in_stock === true;
         },
         outOfStockVisible() {
-            return this.showStock() && this.item.product.in_stock !== true;
+            return this.showStock() && this.item.product.in_stock === false;
         },
         isConfigurable() {
             const options = this.item.product.options;

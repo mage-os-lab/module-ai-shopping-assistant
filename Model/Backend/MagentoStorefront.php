@@ -60,7 +60,8 @@ class MagentoStorefront implements StorefrontBackendInterface
         private readonly \MageOS\AiShoppingAssistant\Api\Backend\PolicySourceInterface $policySource,
         private readonly \MageOS\AiShoppingAssistant\Api\Backend\FulfillmentProviderInterface $fulfillmentProvider,
         private readonly \MageOS\AiShoppingAssistant\Model\Backend\Provider\AllowedCategories $allowedCategories,
-        private readonly \MageOS\AiShoppingAssistant\Api\Backend\CategorySearchProviderInterface $categorySearchProvider
+        private readonly \MageOS\AiShoppingAssistant\Api\Backend\CategorySearchProviderInterface $categorySearchProvider,
+        private readonly \MageOS\AiShoppingAssistant\Model\Backend\CartPriceDisplay $cartPriceDisplay
     ) {
     }
 
@@ -342,7 +343,7 @@ class MagentoStorefront implements StorefrontBackendInterface
             $items[] = new CartItem(
                 (string)$purchasable->getId(),
                 (string)$item->getName(),
-                $this->itemPrice($item),
+                $this->itemPrice($item, $ctx->storeId),
                 (int)$item->getQty(),
                 $this->productImageUrl->forProduct($purchasable, 'product_thumbnail_image', $ctx->storeId)
                     ?? $this->helperImageUrl->forProduct($purchasable, 'product_thumbnail_image', $ctx->storeId),
@@ -356,9 +357,9 @@ class MagentoStorefront implements StorefrontBackendInterface
         return new Cart($items, $currency, round($discount, 2), (string)$quote->getCouponCode());
     }
 
-    private function itemPrice(QuoteItem $item): float
+    private function itemPrice(QuoteItem $item, int $storeId): float
     {
-        $price = (float)$item->getPriceInclTax();
+        $price = $this->cartPriceDisplay->includesTax($storeId) ? (float)$item->getPriceInclTax() : 0.0;
         return $price > 0.0 ? $price : (float)$item->getPrice();
     }
 
