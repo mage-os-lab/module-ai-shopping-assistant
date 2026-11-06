@@ -6,6 +6,7 @@ namespace MageOS\AiShoppingAssistant\Test\Unit\Controller\Result;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\App\Response\Http as HttpResponse;
 use Magento\Framework\Lock\LockManagerInterface;
+use Magento\Framework\Registry;
 use Magento\Store\Api\Data\StoreInterface;
 use Magento\Store\Model\StoreManagerInterface;
 use MageOS\AiShoppingAssistant\Api\Data\PageContextInterface;
@@ -21,8 +22,11 @@ use Psr\Log\LoggerInterface;
 
 class EventStreamTest extends \PHPUnit\Framework\TestCase
 {
+    private Registry $registry;
+
     protected function setUp(): void
     {
+        $this->registry = new Registry();
         if (!class_exists(Orchestrator::class)) {
             $this->markTestSkipped('Turn\\Orchestrator is not present on disk yet (task T9 has not landed).');
         }
@@ -92,7 +96,7 @@ class EventStreamTest extends \PHPUnit\Framework\TestCase
         StoreConfig $storeConfig,
         LoggerInterface $logger
     ): EventStream {
-        $result = new class($orchestrator, $storeConfig, $logger) extends EventStream {
+        $result = new class($orchestrator, $storeConfig, $logger, $this->registry) extends EventStream {
             private array $capturedWrites = [];
 
             public function getWrites(): array
@@ -125,7 +129,7 @@ class EventStreamTest extends \PHPUnit\Framework\TestCase
         StoreConfig $storeConfig,
         LoggerInterface $logger
     ): EventStream {
-        $result = new class($orchestrator, $storeConfig, $logger) extends EventStream {
+        $result = new class($orchestrator, $storeConfig, $logger, $this->registry) extends EventStream {
             protected function compressionIsOn(): bool
             {
                 return true;
@@ -150,7 +154,7 @@ class EventStreamTest extends \PHPUnit\Framework\TestCase
         $orchestrator->method('streamTurn')->willReturn($generator);
         $orchestrator->expects($this->once())->method('interrupt');
         $orchestrator->expects($this->once())->method('finishedAfterInterrupt');
-        $result = new class($orchestrator, $this->storeConfig(), $this->createMock(LoggerInterface::class)) extends EventStream {
+        $result = new class($orchestrator, $this->storeConfig(), $this->createMock(LoggerInterface::class), $this->registry) extends EventStream {
             public array $writes = [];
 
             protected function write(string $frame): void
@@ -254,6 +258,47 @@ class EventStreamTest extends \PHPUnit\Framework\TestCase
         );
 
         $this->assertSame($result, $result->renderResult($response));
+    }
+
+    public function testAStreamedTurnTurnsThePageCacheResultPluginOff(): void
+    {
+        $this->registry->register('use_page_cache_plugin', true, true);
+        $orchestrator = $this->createMock(Orchestrator::class);
+        $orchestrator->method('streamTurn')->willReturn($this->generatorOf([Event::turnComplete('end_turn', [], 10, 0)]));
+
+        $result = $this->buildResultCapturingWrites(
+            $this->binding(),
+            'hello',
+            $this->context(),
+            null,
+            null,
+            $orchestrator,
+            $this->storeConfig(),
+            $this->createMock(LoggerInterface::class)
+        );
+        $result->renderResult($this->responseMock());
+
+        $this->assertFalse($this->registry->registry('use_page_cache_plugin'));
+    }
+
+    public function testTheJsonFallbackLeavesThePageCacheResultPluginOn(): void
+    {
+        $this->registry->register('use_page_cache_plugin', true, true);
+        $response = $this->createMock(HttpResponse::class);
+
+        $result = $this->buildResultReportingCompressionOn(
+            $this->binding(),
+            'hello',
+            $this->context(),
+            null,
+            Event::error('The assistant is busy right now. Please try again in a few seconds.', 5),
+            $this->createMock(Orchestrator::class),
+            $this->storeConfig(),
+            $this->createMock(LoggerInterface::class)
+        );
+        $result->renderResult($response);
+
+        $this->assertTrue($this->registry->registry('use_page_cache_plugin'));
     }
 
     public function testAThrowingGeneratorWritesAnErrorFrameAndStillReleasesTheSlot(): void

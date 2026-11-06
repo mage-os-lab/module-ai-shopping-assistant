@@ -16,6 +16,8 @@ use MageOS\AiShoppingAssistant\Model\Session\Binding;
  * points that touch the real output stream, and observe frames without fighting PHPUnit's
  * own output buffer. Per-request state arrives through setTurn()/setBusy() rather than the
  * constructor, because Magento's compiled factory drops null constructor arguments.
+ * A streamed response turns the page cache result plugin off: it would set a cookie after
+ * the stream has sent its headers, and the warning appends an error page to the stream.
  */
 class EventStream extends AbstractResult
 {
@@ -32,7 +34,8 @@ class EventStream extends AbstractResult
     public function __construct(
         private readonly \MageOS\AiShoppingAssistant\Model\Agent\Turn\Orchestrator $orchestrator,
         private readonly \MageOS\AiShoppingAssistant\Model\Config\StoreConfig $storeConfig,
-        private readonly \Psr\Log\LoggerInterface $logger
+        private readonly \Psr\Log\LoggerInterface $logger,
+        private readonly \Magento\Framework\Registry $registry
     ) {
     }
 
@@ -65,6 +68,8 @@ class EventStream extends AbstractResult
             if ($this->compressionIsOn()) {
                 return $this->renderJsonFallback($response);
             }
+            $this->registry->unregister('use_page_cache_plugin');
+            $this->registry->register('use_page_cache_plugin', false);
             $this->sendStreamHeaders($response);
             $this->drainOutputBuffers();
             $this->write(": open\n\n");
